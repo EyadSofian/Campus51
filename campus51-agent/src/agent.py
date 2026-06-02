@@ -33,18 +33,15 @@ logger = logging.getLogger(__name__)
 
 def _build_llm() -> ChatGoogleGenerativeAI:
     """
-    بيبني موديل Gemini مع retry تلقائي على 429 (rate limit).
-    with_retry بيضيف tenacity retry layer فوق أي LangChain runnable.
+    بيبني موديل Gemini جاهز لـ create_react_agent.
+    ملاحظة: مش بنستخدم with_retry() هنا لأنه بيلفّ الـ LLM في RunnableRetry
+    وده بيكسر bind_tools() اللي create_react_agent محتاجه.
+    الـ retry على 429 موجود في tools.py على مستوى الأدوات.
     """
-    llm = ChatGoogleGenerativeAI(
+    return ChatGoogleGenerativeAI(
         model=settings.LLM_MODEL,
         google_api_key=settings.GOOGLE_API_KEY,
         temperature=settings.LLM_TEMPERATURE,
-    )
-    # retry على 429 و ResourceExhausted فقط — مش على كل exception
-    return llm.with_retry(
-        stop_after_attempt=3,
-        wait_exponential_jitter=True,
     )
 
 
