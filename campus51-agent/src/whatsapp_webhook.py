@@ -12,6 +12,7 @@
 # ============================================================
 
 import logging
+import uuid
 
 import httpx
 from fastapi import FastAPI, Request, Response, Query
@@ -62,18 +63,19 @@ async def api_chat(body: ChatRequest):
         return {"reply": reply}
 
     except ValueError as e:
-        # INVALID_CHAT_HISTORY: الـ thread فيه tool call معلّق — نبدأ thread جديد
+        # INVALID_CHAT_HISTORY: الـ thread فيه tool call معلّق — نبدأ thread جديد تماماً
         if "INVALID_CHAT_HISTORY" in str(e) or "ToolMessage" in str(e):
-            logger.warning("[webchat] broken thread %r — بيبدأ thread جديد", body.thread_id)
-            fresh_config = {"configurable": {"thread_id": body.thread_id + "_r"}}
+            fresh_id = "fresh-" + uuid.uuid4().hex[:8]
+            logger.warning("[webchat] broken thread — retry بـ fresh thread %r", fresh_id)
+            fresh_config = {"configurable": {"thread_id": fresh_id}}
             try:
                 result = agent.invoke(
                     {"messages": [{"role": "user", "content": body.message}]},
                     config=fresh_config,
                 )
                 return {"reply": result["messages"][-1].content}
-            except Exception:
-                pass
+            except Exception as inner:
+                logger.error("[webchat] fresh thread فشل كمان: %s", inner)
         logger.error("[webchat] ValueError: %s", e)
         return {"reply": "عذراً، حصل خطأ مؤقت. حاول مرة ثانية."}
 

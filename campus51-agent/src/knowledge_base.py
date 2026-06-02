@@ -38,11 +38,12 @@ def _get_embeddings() -> GoogleGenerativeAIEmbeddings:
     """
     موديل الـ embeddings — بيحوّل النص لأرقام.
     text-embedding-004: dimension=768، بيشتغل كويس مع العربي والإنجليزي.
+    ملاحظة: api_version="v1" مهم — الموديل ده انتقل من v1beta لـ v1 الرسمي.
     """
-    # الـ google-genai SDK الجديد (4.x) بياخد الاسم بدون prefix "models/"
     return GoogleGenerativeAIEmbeddings(
         model="text-embedding-004",
         google_api_key=settings.GOOGLE_API_KEY,
+        api_version="v1",
     )
 
 
