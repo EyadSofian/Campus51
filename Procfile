@@ -1,1 +1,1 @@
-web: cd campus51-agent && uvicorn src.whatsapp_webhook:app --host 0.0.0.0 --port $PORT
+web: cd campus51-agent && python ingest.py && uvicorn src.whatsapp_webhook:app --host 0.0.0.0 --port $PORT

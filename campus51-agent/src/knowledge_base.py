@@ -121,6 +121,23 @@ def build_vector_store() -> PineconeVectorStore:
     return vector_store
 
 
+def is_index_populated() -> bool:
+    """بيتحقق إن الـ Pinecone index فيه vectors أو لا — عشان منعيدش الرفع."""
+    try:
+        pc = _get_pinecone_client()
+        existing = [idx.name for idx in pc.list_indexes()]
+        if settings.PINECONE_INDEX_NAME not in existing:
+            return False
+        index = pc.Index(settings.PINECONE_INDEX_NAME)
+        stats = index.describe_index_stats()
+        count = stats.total_vector_count
+        logger.info("[pinecone] الـ index فيه %d vector", count)
+        return count > 0
+    except Exception as e:
+        logger.warning("[pinecone] مقدرش يتحقق من الـ index: %s", e)
+        return False
+
+
 def load_vector_store() -> PineconeVectorStore:
     """
     بيتنادى وقت التشغيل العادي — بيفتح الـ index الموجود في Pinecone
