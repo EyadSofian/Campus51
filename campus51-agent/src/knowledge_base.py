@@ -13,6 +13,7 @@
 # embedding model: gemini-embedding-001 (768-dim via MRL truncation), metric=cosine
 # ============================================================
 
+import hashlib
 import logging
 from pathlib import Path
 from time import sleep
@@ -22,6 +23,12 @@ from langchain_pinecone import PineconeVectorStore
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
+from tenacity import (
+    retry,
+    retry_if_exception,
+    stop_after_attempt,
+    wait_fixed,
+)
 
 from src.config import settings
 
@@ -32,6 +39,16 @@ _DIMENSION = 768        # حجم الـ vector لـ text-embedding-004
 _METRIC = "cosine"      # مقياس التشابه الأنسب للنصوص
 _CLOUD = "aws"
 _REGION = "us-east-1"  # الـ region الافتراضي في الـ free tier
+
+# --- إعدادات الرفع المتوافقة مع الـ free-tier quota ---
+# gemini-embedding-001 على الـ free tier محدود بـ 100 embed request/دقيقة.
+# علشان كده بنرفع على دفعات صغيرة، وبين كل دفعة وقفة بسيطة عشان نوزّع
+# الطلبات على الدقيقة، ولو برضه اتعدّى الحد بنستنى دقيقة ونعيد الدفعة
+# (retry على 429) بدل ما الـ ingest كله يقع ويدخل في loop.
+_EMBED_BATCH_SIZE = 40   # عدد الـ chunks في الدفعة الواحدة (تحت الـ 100)
+_BATCH_PAUSE = 35        # ثواني وقفة بين الدفعات (نوزّع على الدقيقة)
+_RATE_LIMIT_WAIT = 63    # ثواني نستناها لو جالنا 429 (الكوتا بتتصفّر كل دقيقة)
+_MAX_RATE_RETRIES = 6    # أقصى محاولات لكل دفعة قبل ما نستسلم
 
 
 def _get_embeddings() -> GoogleGenerativeAIEmbeddings:
@@ -86,63 +103,126 @@ def _ensure_index_exists(pc: Pinecone) -> None:
         logger.info("[pinecone] الـ index موجود بالفعل: %s", index_name)
 
 
-def build_vector_store() -> PineconeVectorStore:
+def _load_and_split() -> list[Document]:
     """
-    بيتنادى مرة واحدة (من ingest.py) عشان يبني الـ vector DB من الصفر.
-    بيقرأ كل ملفات .md في data/kb، يقسّمها، ويرفعها على Pinecone.
+    بيقرأ كل ملفات .md في data/kb ويقسّمها لـ chunks.
+    عملية CPU بحتة (مفيش API) فينفع تتنادى أكتر من مرة بأمان.
     """
     kb_path = Path(settings.KB_DIR)
     md_files = sorted(kb_path.glob("*.md"))
     if not md_files:
         raise FileNotFoundError(f"مفيش ملفات .md في {kb_path.resolve()}")
 
-    # --- 1) نقرأ الملفات ونحوّلها لـ Document objects ---
     # بنحط اسم الملف في metadata عشان نعرف المصدر بعدين (citation).
     docs: list[Document] = []
     for f in md_files:
         text = f.read_text(encoding="utf-8")
         docs.append(Document(page_content=text, metadata={"source": f.name}))
 
-    # --- 2) نقسّم لـ chunks ---
-    # chunk_size = حجم القطعة بالحروف. overlap = تداخل بين القطع
-    # عشان الجملة اللي على الحدود ماتتقطعش معناها.
+    # chunk_size = حجم القطعة بالحروف. overlap = تداخل عشان الجملة اللي على
+    # الحدود ماتتقطعش معناها.
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=1000,
         chunk_overlap=150,
         separators=["\n## ", "\n### ", "\n\n", "\n", " ", ""],
     )
-    chunks = splitter.split_documents(docs)
-    print(f"[ingest] اتقرا {len(docs)} ملف، اتقسّموا لـ {len(chunks)} chunk")
+    return splitter.split_documents(docs)
 
-    # --- 3) نتأكد من وجود الـ index ونرفع الـ vectors ---
+
+def _chunk_id(doc: Document) -> str:
+    """
+    معرّف ثابت لكل chunk (اسم الملف + hash للمحتوى). ده بيخلّي الرفع
+    idempotent: لو الـ ingest اتقطع في النص وأعاد، بنعمل upsert لنفس الـ ids
+    فمنكرّرش vectors ومنفسدش الـ index — بنكمّل الناقص بس.
+    """
+    source = doc.metadata.get("source", "unknown")
+    digest = hashlib.sha1(doc.page_content.encode("utf-8")).hexdigest()[:16]
+    return f"{source}-{digest}"
+
+
+def _is_quota_error(exc: Exception) -> bool:
+    """بيتحقق إن الـ exception ده 429/quota من Gemini (free-tier embed limit)."""
+    msg = str(exc).lower()
+    return (
+        "429" in msg
+        or "resource_exhausted" in msg
+        or "rate limit" in msg
+        or "quota" in msg
+    )
+
+
+@retry(
+    retry=retry_if_exception(_is_quota_error),
+    wait=wait_fixed(_RATE_LIMIT_WAIT),
+    stop=stop_after_attempt(_MAX_RATE_RETRIES),
+    reraise=True,
+)
+def _upload_batch(
+    store: PineconeVectorStore, docs: list[Document], ids: list[str]
+) -> None:
+    """
+    بيرفع دفعة واحدة. لو جاله 429 (الكوتا خلصت) بيستنى دقيقة ويعيد —
+    لأن الـ free-tier window بيتصفّر كل دقيقة. الـ ids الثابتة بتمنع التكرار
+    لو الدفعة اتعادت.
+    """
+    store.add_documents(docs, ids=ids)
+
+
+def expected_chunk_count() -> int:
+    """عدد الـ chunks المتوقّع (unique ids) — بنقارن بيه عدد vectors في الـ index."""
+    chunks = _load_and_split()
+    return len({_chunk_id(c) for c in chunks})
+
+
+def build_vector_store() -> PineconeVectorStore:
+    """
+    بيتنادى من ingest.py عشان يبني/يكمّل الـ vector DB.
+    بيرفع على دفعات صغيرة محترماً الـ free-tier quota (100 embed/دقيقة)،
+    وبـ ids ثابتة عشان يكون idempotent (ينفع يعيد من غير تكرار).
+    """
+    chunks = _load_and_split()
+    ids = [_chunk_id(c) for c in chunks]
+    total = len(chunks)
+    print(f"[ingest] اتقسّموا لـ {total} chunk — هيترفعوا على دفعات من {_EMBED_BATCH_SIZE}")
+
     pc = _get_pinecone_client()
     _ensure_index_exists(pc)
 
-    embeddings = _get_embeddings()
-    vector_store = PineconeVectorStore.from_documents(
-        documents=chunks,
-        embedding=embeddings,
+    store = PineconeVectorStore(
         index_name=settings.PINECONE_INDEX_NAME,
+        embedding=_get_embeddings(),
     )
-    print(f"[ingest] ✅ الـ vector DB اترفع على Pinecone index: {settings.PINECONE_INDEX_NAME}")
-    return vector_store
+
+    for start in range(0, total, _EMBED_BATCH_SIZE):
+        batch_docs = chunks[start : start + _EMBED_BATCH_SIZE]
+        batch_ids = ids[start : start + _EMBED_BATCH_SIZE]
+        _upload_batch(store, batch_docs, batch_ids)
+        done = min(start + _EMBED_BATCH_SIZE, total)
+        print(f"[ingest] ✅ اترفع {done}/{total}")
+        if done < total:
+            sleep(_BATCH_PAUSE)  # نوزّع الطلبات على الدقيقة عشان منخبطش الـ quota
+
+    print(f"[ingest] ✅ الـ vector DB جاهز على Pinecone index: {settings.PINECONE_INDEX_NAME}")
+    return store
 
 
-def is_index_populated() -> bool:
-    """بيتحقق إن الـ Pinecone index فيه vectors أو لا — عشان منعيدش الرفع."""
+def current_vector_count() -> int:
+    """
+    عدد الـ vectors الحالي في الـ index (-1 لو مش موجود أو حصل خطأ).
+    بنستخدمه عشان نعرف نكمّل الرفع ولا نعدّي.
+    """
     try:
         pc = _get_pinecone_client()
         existing = [idx.name for idx in pc.list_indexes()]
         if settings.PINECONE_INDEX_NAME not in existing:
-            return False
+            return -1
         index = pc.Index(settings.PINECONE_INDEX_NAME)
-        stats = index.describe_index_stats()
-        count = stats.total_vector_count
+        count = index.describe_index_stats().total_vector_count
         logger.info("[pinecone] الـ index فيه %d vector", count)
-        return count > 0
+        return count
     except Exception as e:
         logger.warning("[pinecone] مقدرش يتحقق من الـ index: %s", e)
-        return False
+        return -1
 
 
 def load_vector_store() -> PineconeVectorStore:
