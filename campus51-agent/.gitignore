@@ -1,0 +1,17 @@
+# بيئة Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# ملف المفاتيح (لا ترفعه أبداً!)
+.env
+
+# بيانات محلية
+data/chroma/
+
+# IDE
+.idea/
+.vscode/
+*.swp
