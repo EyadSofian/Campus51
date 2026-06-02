@@ -1,0 +1,27 @@
+# ============================================================
+# Campus 51 — Murshid Agent | Dependencies (LangChain 1.0 stack)
+# آخر إصدار مستقر من LangChain/LangGraph (Oct 2025 GA)
+# ============================================================
+
+# --- نواة LangChain 1.0 ---
+langchain>=0.3.0
+langgraph>=0.2.0
+langchain-core>=0.3.0
+
+# --- مزود الموديل: Gemini (نفس اللي في بوت Botpress بتاعك) ---
+langchain-google-genai>=2.1.0
+
+# --- RAG: Pinecone (vector store سحابي للإنتاج) ---
+langchain-pinecone>=0.2.0
+pinecone>=5.0.0
+
+# --- WhatsApp webhook server ---
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+httpx>=0.27.0          # عشان نبعت ردود لـ WhatsApp + نكلّم Campus51 endpoint
+pydantic>=2.9.0
+
+# --- أدوات مساعدة ---
+python-dotenv>=1.0.0   # تحميل المتغيرات من .env
+tenacity>=8.2.0        # retry logic على 429 (rate limit)
+langchain-text-splitters>=0.3.0

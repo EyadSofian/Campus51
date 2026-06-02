@@ -1,8 +1,5 @@
 {
   "$schema": "https://railway.app/railway-schema.json",
-  "build": {
-    "buildCommand": "pip install -r campus51-agent/requirements.txt"
-  },
   "deploy": {
     "startCommand": "cd campus51-agent && uvicorn src.whatsapp_webhook:app --host 0.0.0.0 --port $PORT",
     "restartPolicyType": "ON_FAILURE",
