@@ -10,7 +10,7 @@
 #   4) وقت السؤال: بنحوّل السؤال لـ vector ونجيب أقرب القطع
 #      (similarity search) ونرجّعها للموديل عشان يجاوب منها.
 #
-# embedding model: text-embedding-004 → dimension=768, metric=cosine
+# embedding model: gemini-embedding-001 (768-dim via MRL truncation), metric=cosine
 # ============================================================
 
 import logging
@@ -37,13 +37,20 @@ _REGION = "us-east-1"  # الـ region الافتراضي في الـ free tier
 def _get_embeddings() -> GoogleGenerativeAIEmbeddings:
     """
     موديل الـ embeddings — بيحوّل النص لأرقام.
-    text-embedding-004: dimension=768، بيشتغل كويس مع العربي والإنجليزي.
-    ملاحظة: api_version="v1" مهم — الموديل ده انتقل من v1beta لـ v1 الرسمي.
+    gemini-embedding-001: الموديل الرسمي الحالي. بديل text-embedding-004
+    اللي اتعمله deprecated في 14 يناير 2026 وبقى بيرجّع 404 (ده كان سبب
+    إن البوت مش بيجاوب على أسئلة الـ KB). بيشتغل كويس مع العربي والإنجليزي.
+
+    ملاحظة مهمة عن الأبعاد:
+      الـ default بتاع gemini-embedding-001 هو 3072، بس بيدعم MRL truncation.
+      بنطلب 768 (output_dimensionality=_DIMENSION) عشان نفضل متوافقين مع الـ
+      Pinecone index الـ 768. الـ cosine metric بيـ normalize تلقائياً فمش
+      محتاجين normalization يدوي للأبعاد المقطوعة.
     """
     return GoogleGenerativeAIEmbeddings(
-        model="text-embedding-004",
+        model="gemini-embedding-001",
         google_api_key=settings.GOOGLE_API_KEY,
-        api_version="v1",
+        output_dimensionality=_DIMENSION,
     )
 
 
