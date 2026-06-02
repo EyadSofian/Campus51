@@ -24,6 +24,13 @@ from src.agent import build_agent
 
 logger = logging.getLogger(__name__)
 
+
+def _is_quota_error(exc: Exception) -> bool:
+    """429 / تجاوز الكوتا المجانية من Gemini (سواء الـ LLM أو الـ embeddings)."""
+    m = str(exc).lower()
+    return "429" in m or "resource_exhausted" in m or "quota" in m or "rate limit" in m
+
+
 app = FastAPI(title="Campus 51 — Murshid")
 
 # بنبني الـ agent مرة واحدة عند تشغيل السيرفر (مش كل رسالة).
@@ -82,9 +89,16 @@ def api_chat(body: ChatRequest):
         logger.exception("[webchat] ValueError")
         return {"reply": "عذراً، حصل خطأ مؤقت. حاول مرة ثانية."}
 
-    except Exception:
+    except Exception as e:
         # logger.exception بيطبع الـ traceback كامل في لوج Railway عشان نشوف السبب
         logger.exception("[webchat] error")
+        if _is_quota_error(e):
+            # ده السبب الأشهر: الكوتا المجانية اليومية لموديل Gemini خلصت
+            return {"reply": (
+                "⚠️ البوت وصل للحد اليومي المجاني من Google Gemini. "
+                "لتشغيله بدون توقف فعّل الفوترة (billing) على مفتاح Google API، "
+                "أو غيّر الموديل لـ gemini-2.5-flash-lite، أو جرّب لاحقاً."
+            )}
         return {"reply": "عذراً، حصل خطأ في الاتصال بالخادم. حاول بعد لحظة."}
 
 
