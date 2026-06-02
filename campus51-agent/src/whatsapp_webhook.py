@@ -47,8 +47,11 @@ async def serve_chat_ui():
     return HTMLResponse(content=CHAT_HTML)
 
 
+# ملاحظة: def (مش async) عن قصد — agent.invoke عملية blocking،
+# فلو خلّيناها async هتقفل الـ event loop وممكن تسبب timeout/502.
+# FastAPI بيشغّل الـ sync endpoints في threadpool فمفيش blocking.
 @app.post("/api/chat")
-async def api_chat(body: ChatRequest):
+def api_chat(body: ChatRequest):
     """API الويب شات: بياخد رسالة ويرجّع رد البوت."""
     logger.info("[webchat] thread=%r | msg=%r", body.thread_id, body.message[:80])
     config = {"configurable": {"thread_id": body.thread_id}}
@@ -74,13 +77,14 @@ async def api_chat(body: ChatRequest):
                     config=fresh_config,
                 )
                 return {"reply": result["messages"][-1].content}
-            except Exception as inner:
-                logger.error("[webchat] fresh thread فشل كمان: %s", inner)
-        logger.error("[webchat] ValueError: %s", e)
+            except Exception:
+                logger.exception("[webchat] fresh thread فشل كمان")
+        logger.exception("[webchat] ValueError")
         return {"reply": "عذراً، حصل خطأ مؤقت. حاول مرة ثانية."}
 
-    except Exception as e:
-        logger.error("[webchat] error: %s", e)
+    except Exception:
+        # logger.exception بيطبع الـ traceback كامل في لوج Railway عشان نشوف السبب
+        logger.exception("[webchat] error")
         return {"reply": "عذراً، حصل خطأ في الاتصال بالخادم. حاول بعد لحظة."}
 
 
@@ -150,6 +154,46 @@ async def receive_message(request: Request):
 async def health():
     """فحص حالة السيرفر."""
     return {"service": "Campus 51 Murshid", "status": "running"}
+
+
+@app.get("/diag")
+def diag():
+    """
+    تشخيص سريع لحالة الـ KB — افتح اللينك ده في المتصفح:
+        https://<your-app>.up.railway.app/diag
+
+    بيقوللك: المفاتيح متظبطة؟ الـ Pinecone index فيه كام vector؟
+    الـ search شغّال فعلاً ولا بيرمي خطأ إيه بالظبط.
+    ده بيوضّح سبب "حصل خطأ في الاتصال" من غير ما تحتاج تبص في اللوج.
+    """
+    out = {
+        "service": "Campus 51 Murshid",
+        "google_key_set": bool(settings.GOOGLE_API_KEY),
+        "pinecone_key_set": bool(settings.PINECONE_API_KEY),
+        "index_name": settings.PINECONE_INDEX_NAME,
+        "llm_model": settings.LLM_MODEL,
+    }
+
+    # حالة الـ Pinecone index (كام vector فيه مقابل المتوقّع)
+    try:
+        from src.knowledge_base import current_vector_count, expected_chunk_count
+        out["vector_count"] = current_vector_count()
+        out["expected_chunks"] = expected_chunk_count()
+        out["index_ready"] = out["vector_count"] >= out["expected_chunks"] > 0
+    except Exception as e:
+        out["index_error"] = f"{type(e).__name__}: {e}"
+
+    # اختبار search حي (نفس اللي البوت بيناديه)
+    try:
+        from src.tools import search_knowledge_base
+        res = search_knowledge_base.invoke({"query": "نظام الدفع والتقسيط"})
+        out["search_ok"] = True
+        out["search_sample"] = (res or "")[:200]
+    except Exception as e:
+        out["search_ok"] = False
+        out["search_error"] = f"{type(e).__name__}: {str(e)[:400]}"
+
+    return out
 
 
 # ============================================================
