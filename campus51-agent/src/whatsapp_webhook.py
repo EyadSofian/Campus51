@@ -51,13 +51,35 @@ async def api_chat(body: ChatRequest):
     """API الويب شات: بياخد رسالة ويرجّع رد البوت."""
     logger.info("[webchat] thread=%r | msg=%r", body.thread_id, body.message[:80])
     config = {"configurable": {"thread_id": body.thread_id}}
-    result = agent.invoke(
-        {"messages": [{"role": "user", "content": body.message}]},
-        config=config,
-    )
-    reply = result["messages"][-1].content
-    logger.info("[webchat] reply=%r", reply[:80])
-    return {"reply": reply}
+
+    try:
+        result = agent.invoke(
+            {"messages": [{"role": "user", "content": body.message}]},
+            config=config,
+        )
+        reply = result["messages"][-1].content
+        logger.info("[webchat] reply=%r", reply[:80])
+        return {"reply": reply}
+
+    except ValueError as e:
+        # INVALID_CHAT_HISTORY: الـ thread فيه tool call معلّق — نبدأ thread جديد
+        if "INVALID_CHAT_HISTORY" in str(e) or "ToolMessage" in str(e):
+            logger.warning("[webchat] broken thread %r — بيبدأ thread جديد", body.thread_id)
+            fresh_config = {"configurable": {"thread_id": body.thread_id + "_r"}}
+            try:
+                result = agent.invoke(
+                    {"messages": [{"role": "user", "content": body.message}]},
+                    config=fresh_config,
+                )
+                return {"reply": result["messages"][-1].content}
+            except Exception:
+                pass
+        logger.error("[webchat] ValueError: %s", e)
+        return {"reply": "عذراً، حصل خطأ مؤقت. حاول مرة ثانية."}
+
+    except Exception as e:
+        logger.error("[webchat] error: %s", e)
+        return {"reply": "عذراً، حصل خطأ في الاتصال بالخادم. حاول بعد لحظة."}
 
 
 # ============================================================
