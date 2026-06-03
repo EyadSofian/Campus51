@@ -34,16 +34,56 @@ _CLOUD = "aws"
 _REGION = "us-east-1"  # الـ region الافتراضي في الـ free tier
 
 
-def _get_embeddings() -> GoogleGenerativeAIEmbeddings:
+# بنحفظ الموديل اللي اشتغل عشان منجربش تاني كل مرة (cache).
+_embeddings_cache: GoogleGenerativeAIEmbeddings | None = None
+
+
+def _make_embeddings(model_name: str) -> GoogleGenerativeAIEmbeddings:
     """
-    موديل الـ embeddings — بيحوّل النص لأرقام.
-    text-embedding-004: dimension=768، بيشتغل كويس مع العربي والإنجليزي.
-    ملاحظة: api_version="v1" مهم — الموديل ده انتقل من v1beta لـ v1 الرسمي.
+    بيبني موديل embeddings باسم معيّن.
+    output_dimensionality=768 بيجبر كل الموديلات تطلّع 768 رقم،
+    عشان يفضل متوافق مع الـ Pinecone index مهما كان الموديل.
     """
     return GoogleGenerativeAIEmbeddings(
-        model="text-embedding-004",
+        model=model_name,
         google_api_key=settings.GOOGLE_API_KEY,
-        api_version="v1",
+        output_dimensionality=_DIMENSION,
+    )
+
+
+def _get_embeddings() -> GoogleGenerativeAIEmbeddings:
+    """
+    موديل الـ embeddings — بيحوّل النص لأرقام (dimension=768).
+
+    بيجرّب أكتر من موديل بالترتيب (الـ SDK/API بيتغير كتير):
+      1) الموديل المحدّد في EMBEDDING_MODEL (افتراضي gemini-embedding-001)
+      2) text-embedding-004 (الأقدم)
+    بيستخدم أول موديل بينجح فعلاً (بيعمل embed تجريبي صغير للتأكد)،
+    ويحفظه في الـ cache عشان منكررش المحاولة.
+    """
+    global _embeddings_cache
+    if _embeddings_cache is not None:
+        return _embeddings_cache
+
+    candidates: list[str] = []
+    for m in [settings.EMBEDDING_MODEL, "gemini-embedding-001", "text-embedding-004"]:
+        if m and m not in candidates:
+            candidates.append(m)
+
+    last_err: Exception | None = None
+    for name in candidates:
+        try:
+            emb = _make_embeddings(name)
+            emb.embed_query("ping")  # تجربة فعلية — لو الموديل مش متاح هترمي error هنا
+            logger.info("[embeddings] ✅ بيستخدم الموديل: %s (dim=%d)", name, _DIMENSION)
+            _embeddings_cache = emb
+            return emb
+        except Exception as e:
+            logger.warning("[embeddings] الموديل '%s' مش شغّال: %s", name, str(e)[:140])
+            last_err = e
+
+    raise RuntimeError(
+        f"مفيش موديل embeddings شغّال من {candidates}. آخر خطأ: {last_err}"
     )
 
 

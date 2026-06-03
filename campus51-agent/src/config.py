@@ -22,6 +22,11 @@ class Settings:
     LLM_TEMPERATURE: float = float(os.getenv("LLM_TEMPERATURE", "0.3"))
     GOOGLE_API_KEY: str = os.getenv("GOOGLE_API_KEY", "")
 
+    # --- موديل الـ embeddings (للـ RAG) ---
+    # gemini-embedding-001 هو الموديل الحالي المدعوم في الـ SDK الجديد.
+    # لو فشل، الكود بيجرّب text-embedding-004 تلقائياً (fallback).
+    EMBEDDING_MODEL: str = os.getenv("EMBEDDING_MODEL", "gemini-embedding-001")
+
     # --- Pinecone (vector store سحابي) ---
     PINECONE_API_KEY: str = os.getenv("PINECONE_API_KEY", "")
     PINECONE_INDEX_NAME: str = os.getenv("PINECONE_INDEX_NAME", "campus51-kb")
