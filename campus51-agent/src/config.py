@@ -14,34 +14,44 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+def _env(key: str, default: str = "") -> str:
+    """
+    بيقرأ متغير من البيئة و بيشيل أي مسافات/أسطر زيادة (.strip()).
+    ده مهم جداً: لو حطّيت مفتاح أو اسم موديل بمسافة زيادة في الآخر
+    (شائع جداً مع الـ copy-paste على Railway)، الـ strip بيمنعها
+    من إنها تكسر اسم الموديل أو الـ API key.
+    """
+    return os.getenv(key, default).strip()
+
+
 class Settings:
     """كل إعدادات التطبيق في كلاس واحد منظّم."""
 
     # --- الموديل (LLM) ---
-    LLM_MODEL: str = os.getenv("LLM_MODEL", "gemini-2.5-flash")
-    LLM_TEMPERATURE: float = float(os.getenv("LLM_TEMPERATURE", "0.3"))
-    GOOGLE_API_KEY: str = os.getenv("GOOGLE_API_KEY", "")
+    LLM_MODEL: str = _env("LLM_MODEL", "gemini-2.5-flash")
+    LLM_TEMPERATURE: float = float(_env("LLM_TEMPERATURE", "0.3") or "0.3")
+    GOOGLE_API_KEY: str = _env("GOOGLE_API_KEY")
 
     # --- موديل الـ embeddings (للـ RAG) ---
     # gemini-embedding-001 هو الموديل الحالي المدعوم في الـ SDK الجديد.
     # لو فشل، الكود بيجرّب text-embedding-004 تلقائياً (fallback).
-    EMBEDDING_MODEL: str = os.getenv("EMBEDDING_MODEL", "gemini-embedding-001")
+    EMBEDDING_MODEL: str = _env("EMBEDDING_MODEL", "gemini-embedding-001")
 
     # --- Pinecone (vector store سحابي) ---
-    PINECONE_API_KEY: str = os.getenv("PINECONE_API_KEY", "")
-    PINECONE_INDEX_NAME: str = os.getenv("PINECONE_INDEX_NAME", "campus51-kb")
+    PINECONE_API_KEY: str = _env("PINECONE_API_KEY")
+    PINECONE_INDEX_NAME: str = _env("PINECONE_INDEX_NAME", "campus51-kb")
 
     # --- Campus51 Lead Endpoint ---
-    CAMPUS51_LEADS_ENDPOINT: str = os.getenv("CAMPUS51_LEADS_ENDPOINT", "")
-    CAMPUS51_API_KEY: str = os.getenv("CAMPUS51_API_KEY", "")
+    CAMPUS51_LEADS_ENDPOINT: str = _env("CAMPUS51_LEADS_ENDPOINT")
+    CAMPUS51_API_KEY: str = _env("CAMPUS51_API_KEY")
 
     # --- WhatsApp Cloud API ---
-    WHATSAPP_TOKEN: str = os.getenv("WHATSAPP_TOKEN", "")
-    WHATSAPP_PHONE_NUMBER_ID: str = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "")
-    WHATSAPP_VERIFY_TOKEN: str = os.getenv("WHATSAPP_VERIFY_TOKEN", "")
+    WHATSAPP_TOKEN: str = _env("WHATSAPP_TOKEN")
+    WHATSAPP_PHONE_NUMBER_ID: str = _env("WHATSAPP_PHONE_NUMBER_ID")
+    WHATSAPP_VERIFY_TOKEN: str = _env("WHATSAPP_VERIFY_TOKEN")
 
     # --- مسارات ---
-    KB_DIR: str = os.getenv("KB_DIR", "data/kb")
+    KB_DIR: str = _env("KB_DIR", "data/kb")
 
     def validate(self) -> None:
         """
