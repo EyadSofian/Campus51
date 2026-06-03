@@ -210,456 +210,219 @@ def diag():
     return out
 
 
+
 # ============================================================
-# ويب شات HTML (glassmorphism)
+# ويب شات HTML (light theme — Tailwind + marked.js)
 # ============================================================
 
-CHAT_HTML = """<!DOCTYPE html>
+CHAT_HTML = r"""<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>مرشد | Campus 51</title>
+
+<!-- مكتبات حديثة عبر CDN -->
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-
-body{
-  font-family:'Cairo',system-ui,sans-serif;
-  background:#060d1f;
-  min-height:100vh;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  overflow:hidden;
-  position:relative;
-}
-
-/* خلفية متحركة */
-.orb{
-  position:fixed;border-radius:50%;
-  filter:blur(90px);opacity:.18;
-  pointer-events:none;
-  animation:drift 12s ease-in-out infinite;
-}
-.o1{width:600px;height:600px;background:radial-gradient(circle,#4f46e5,#7c3aed);top:-150px;left:-150px;animation-delay:0s}
-.o2{width:500px;height:500px;background:radial-gradient(circle,#0ea5e9,#6366f1);bottom:-120px;right:-120px;animation-delay:-5s}
-.o3{width:350px;height:350px;background:radial-gradient(circle,#8b5cf6,#ec4899);top:40%;left:35%;animation-delay:-9s}
-
-@keyframes drift{
-  0%,100%{transform:translate(0,0) scale(1)}
-  33%{transform:translate(40px,-40px) scale(1.05)}
-  66%{transform:translate(-30px,25px) scale(.95)}
-}
-
-/* شبكة خلفية */
-body::before{
-  content:'';position:fixed;inset:0;
-  background-image:
-    linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),
-    linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px);
-  background-size:60px 60px;pointer-events:none;z-index:0;
-}
-
-/* الحاوية الرئيسية */
-.chat-wrap{
-  width:100%;max-width:800px;
-  height:95vh;max-height:920px;
-  margin:0 16px;
-  display:flex;flex-direction:column;
-  background:rgba(255,255,255,.038);
-  backdrop-filter:blur(28px);-webkit-backdrop-filter:blur(28px);
-  border:1px solid rgba(255,255,255,.09);
-  border-radius:28px;
-  overflow:hidden;
-  box-shadow:
-    0 40px 80px rgba(0,0,0,.5),
-    inset 0 1px 0 rgba(255,255,255,.1),
-    inset 0 0 0 1px rgba(255,255,255,.04);
-  position:relative;z-index:1;
-}
-
-/* هيدر */
-.header{
-  padding:18px 26px;
-  background:rgba(255,255,255,.045);
-  border-bottom:1px solid rgba(255,255,255,.07);
-  display:flex;align-items:center;gap:14px;
-  flex-shrink:0;
-}
-
-.h-logo{
-  width:50px;height:50px;border-radius:16px;
-  background:linear-gradient(135deg,#6366f1 0%,#8b5cf6 50%,#a855f7 100%);
-  display:flex;align-items:center;justify-content:center;
-  font-size:24px;flex-shrink:0;
-  box-shadow:0 6px 20px rgba(99,102,241,.45);
-}
-
-.h-text{flex:1}
-.h-name{
-  font-size:18px;font-weight:700;color:#f1f5f9;
-  display:flex;align-items:center;gap:8px;
-}
-.h-sub{font-size:12px;color:rgba(255,255,255,.4);margin-top:3px}
-
-.h-dot{
-  width:9px;height:9px;background:#22c55e;border-radius:50%;
-  box-shadow:0 0 0 3px rgba(34,197,94,.2);
-  animation:hbeat 2s infinite;
-}
-@keyframes hbeat{
-  0%,100%{box-shadow:0 0 0 3px rgba(34,197,94,.2)}
-  50%{box-shadow:0 0 0 6px rgba(34,197,94,0)}
-}
-
-.h-badge{
-  padding:7px 16px;
-  background:rgba(99,102,241,.12);
-  border:1px solid rgba(99,102,241,.28);
-  border-radius:20px;
-  font-size:11.5px;font-weight:600;
-  color:#a5b4fc;letter-spacing:.4px;
-}
-
-/* منطقة الرسائل */
-.msgs{
-  flex:1;overflow-y:auto;
-  padding:28px 26px 16px;
-  display:flex;flex-direction:column;gap:18px;
-  scroll-behavior:smooth;
-}
-.msgs::-webkit-scrollbar{width:3px}
-.msgs::-webkit-scrollbar-thumb{background:rgba(255,255,255,.08);border-radius:2px}
-
-/* فقاعات الرسائل */
-.msg{
-  display:flex;gap:10px;align-items:flex-end;
-  animation:popIn .35s cubic-bezier(.34,1.56,.64,1);
-}
-@keyframes popIn{
-  from{opacity:0;transform:translateY(18px) scale(.93)}
-  to{opacity:1;transform:translateY(0) scale(1)}
-}
-
-.msg.user{flex-direction:row-reverse}
-
-.m-av{
-  width:34px;height:34px;border-radius:11px;
-  display:flex;align-items:center;justify-content:center;
-  font-size:15px;flex-shrink:0;margin-bottom:3px;
-}
-.msg.bot .m-av{background:linear-gradient(135deg,#6366f1,#8b5cf6)}
-.msg.user .m-av{background:linear-gradient(135deg,#0ea5e9,#3b82f6)}
-
-.m-body{max-width:72%}
-
-.m-bubble{
-  padding:14px 18px;
-  border-radius:20px;
-  font-size:14.5px;line-height:1.85;
-  white-space:pre-wrap;word-break:break-word;
-}
-
-.msg.bot .m-bubble{
-  background:rgba(99,102,241,.1);
-  border:1px solid rgba(99,102,241,.18);
-  border-bottom-right-radius:5px;
-  color:#e2e8f0;
-}
-.msg.user .m-bubble{
-  background:rgba(14,165,233,.12);
-  border:1px solid rgba(14,165,233,.22);
-  border-bottom-left-radius:5px;
-  color:#f1f5f9;text-align:right;
-}
-
-.m-time{
-  font-size:10px;color:rgba(255,255,255,.28);
-  margin-top:5px;padding:0 3px;
-}
-.msg.user .m-time{text-align:left}
-
-/* مؤشر الكتابة */
-.typing{
-  display:none;align-items:flex-end;gap:10px;
-}
-.typing.on{display:flex;animation:popIn .3s ease}
-
-.t-dots{
-  background:rgba(99,102,241,.1);
-  border:1px solid rgba(99,102,241,.18);
-  border-radius:20px;border-bottom-right-radius:5px;
-  padding:14px 18px;
-  display:flex;gap:6px;align-items:center;
-}
-.t-d{
-  width:7px;height:7px;background:rgba(165,180,252,.7);
-  border-radius:50%;
-  animation:tdot 1.3s ease infinite;
-}
-.t-d:nth-child(2){animation-delay:.22s}
-.t-d:nth-child(3){animation-delay:.44s}
-@keyframes tdot{
-  0%,60%,100%{transform:translateY(0);opacity:.5}
-  30%{transform:translateY(-7px);opacity:1}
-}
-
-/* رسالة ترحيب */
-.welcome{
-  text-align:center;padding:40px 20px;
-  color:rgba(255,255,255,.45);
-  font-size:13.5px;line-height:2;
-}
-.w-icon{
-  width:72px;height:72px;
-  background:linear-gradient(135deg,rgba(99,102,241,.2),rgba(139,92,246,.2));
-  border:1px solid rgba(99,102,241,.25);
-  border-radius:22px;
-  display:flex;align-items:center;justify-content:center;
-  font-size:36px;
-  margin:0 auto 18px;
-  backdrop-filter:blur(8px);
-}
-.w-title{font-size:17px;font-weight:700;color:#e2e8f0;margin-bottom:8px}
-
-/* اقتراحات سريعة */
-.suggestions{
-  display:flex;flex-wrap:wrap;gap:8px;
-  justify-content:center;margin-top:18px;
-}
-.sug{
-  padding:8px 16px;
-  background:rgba(99,102,241,.1);
-  border:1px solid rgba(99,102,241,.22);
-  border-radius:20px;
-  font-size:12.5px;color:#c4b5fd;
-  cursor:pointer;
-  transition:all .2s;
-}
-.sug:hover{
-  background:rgba(99,102,241,.2);
-  border-color:rgba(99,102,241,.4);
-  transform:translateY(-1px);
-}
-
-/* منطقة الإدخال */
-.input-zone{
-  padding:16px 26px 20px;
-  background:rgba(255,255,255,.03);
-  border-top:1px solid rgba(255,255,255,.06);
-  flex-shrink:0;
-}
-.inp-wrap{
-  display:flex;gap:10px;align-items:flex-end;
-  background:rgba(255,255,255,.055);
-  border:1px solid rgba(255,255,255,.09);
-  border-radius:18px;
-  padding:10px 10px 10px 16px;
-  transition:border-color .25s,box-shadow .25s;
-}
-.inp-wrap:focus-within{
-  border-color:rgba(99,102,241,.45);
-  box-shadow:0 0 0 4px rgba(99,102,241,.07);
-}
-
-#msgIn{
-  flex:1;background:none;border:none;outline:none;
-  color:#f1f5f9;
-  font-family:'Cairo',system-ui,sans-serif;
-  font-size:14.5px;line-height:1.6;
-  resize:none;max-height:130px;min-height:26px;
-  padding:4px 0;direction:auto;
-}
-#msgIn::placeholder{color:rgba(255,255,255,.22)}
-
-#sendBtn{
-  width:42px;height:42px;border-radius:13px;border:none;
-  background:linear-gradient(135deg,#6366f1,#8b5cf6);
-  color:#fff;cursor:pointer;
-  display:flex;align-items:center;justify-content:center;
-  transition:all .2s;flex-shrink:0;
-}
-#sendBtn:hover:not(:disabled){
-  transform:scale(1.08);
-  box-shadow:0 6px 20px rgba(99,102,241,.55);
-}
-#sendBtn:active:not(:disabled){transform:scale(.94)}
-#sendBtn:disabled{opacity:.35;cursor:not-allowed}
-
-.inp-hint{
-  font-size:10.5px;color:rgba(255,255,255,.18);
-  margin-top:8px;text-align:center;
-}
-
-/* فوتر */
-.footer{
-  padding:10px 26px 14px;
-  text-align:center;
-  font-size:10.5px;color:rgba(255,255,255,.15);
-  flex-shrink:0;
-}
-
-/* خطأ */
-.err-bubble{
-  background:rgba(239,68,68,.1)!important;
-  border-color:rgba(239,68,68,.22)!important;
-  color:#fca5a5!important;
-}
-
-@media(max-width:600px){
-  .chat-wrap{margin:0;border-radius:0;height:100vh;max-height:none}
-  .msgs{padding:16px}
-  .input-zone{padding:12px 14px 16px}
-  .header{padding:14px 16px}
-  .h-badge{display:none}
-}
-</style>
-</head>
-<body>
-<div class="orb o1"></div>
-<div class="orb o2"></div>
-<div class="orb o3"></div>
-
-<div class="chat-wrap">
-  <!-- هيدر -->
-  <div class="header">
-    <div class="h-logo">🎓</div>
-    <div class="h-text">
-      <div class="h-name">مرشد <div class="h-dot"></div></div>
-      <div class="h-sub">المستشار الأكاديمي · Campus 51</div>
-    </div>
-    <div class="h-badge">Campus 51</div>
-  </div>
-
-  <!-- الرسائل -->
-  <div class="msgs" id="msgs">
-    <div class="welcome" id="welcome">
-      <div class="w-icon">🎓</div>
-      <div class="w-title">أهلاً بك في مرشد</div>
-      المستشار الأكاديمي الذكي لـ Campus 51<br>
-      اسألني عن أي برنامج أو كورس أو مسار تأهيل
-      <div class="suggestions">
-        <span class="sug" onclick="quickSend(this)">ما هو مسار QTS Pathway؟</span>
-        <span class="sug" onclick="quickSend(this)">ما هي البرامج المتاحة؟</span>
-        <span class="sug" onclick="quickSend(this)">أريد التسجيل في دورة</span>
-        <span class="sug" onclick="quickSend(this)">معلومات عن الشهادات</span>
-      </div>
-    </div>
-  </div>
-
-  <!-- مؤشر الكتابة -->
-  <div class="typing" id="typing">
-    <div class="m-av" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);margin-bottom:3px">🎓</div>
-    <div class="t-dots">
-      <div class="t-d"></div><div class="t-d"></div><div class="t-d"></div>
-    </div>
-  </div>
-
-  <!-- إدخال -->
-  <div class="input-zone">
-    <div class="inp-wrap">
-      <textarea id="msgIn" placeholder="اكتب رسالتك هنا..." rows="1"></textarea>
-      <button id="sendBtn" onclick="send()">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
-          stroke="currentColor" stroke-width="2.5"
-          stroke-linecap="round" stroke-linejoin="round">
-          <line x1="22" y1="2" x2="11" y2="13"/>
-          <polygon points="22 2 15 22 11 13 2 9 22 2"/>
-        </svg>
-      </button>
-    </div>
-    <div class="inp-hint">Enter للإرسال &nbsp;·&nbsp; Shift+Enter لسطر جديد</div>
-  </div>
-
-  <div class="footer">مدعوم بـ Google Gemini &nbsp;·&nbsp; Campus 51 &copy; 2026</div>
-</div>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 
 <script>
-const tid = 'web-' + Math.random().toString(36).slice(2,9);
-const msgs = document.getElementById('msgs');
-const typing = document.getElementById('typing');
-const inp = document.getElementById('msgIn');
-const btn = document.getElementById('sendBtn');
+  // إعداد Tailwind: ألوان البراند + الخط
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: { sans: ['Cairo', 'system-ui', 'sans-serif'] },
+        colors: {
+          brand: {
+            50:'#eef2ff',100:'#e0e7ff',200:'#c7d2fe',300:'#a5b4fc',
+            400:'#818cf8',500:'#6366f1',600:'#4f46e5',700:'#4338ca',
+          },
+        },
+        keyframes: {
+          pop: { '0%':{opacity:'0',transform:'translateY(10px) scale(.97)'},
+                 '100%':{opacity:'1',transform:'translateY(0) scale(1)'} },
+          bounceDot: { '0%,80%,100%':{transform:'translateY(0)',opacity:'.4'},
+                       '40%':{transform:'translateY(-6px)',opacity:'1'} },
+        },
+        animation: {
+          pop: 'pop .35s cubic-bezier(.34,1.56,.64,1)',
+          'bounce-dot': 'bounceDot 1.3s ease infinite',
+        },
+      },
+    },
+  };
+</script>
 
-inp.addEventListener('input',()=>{
-  inp.style.height='auto';
-  inp.style.height=Math.min(inp.scrollHeight,130)+'px';
-});
-inp.addEventListener('keydown',e=>{
-  if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}
-});
+<style>
+  /* تنعيم السكرول + شكل الـ scrollbar */
+  #msgs::-webkit-scrollbar{ width:6px; }
+  #msgs::-webkit-scrollbar-thumb{ background:#cbd5e1; border-radius:99px; }
+  #msgs{ scroll-behavior:smooth; }
 
-function ts(){
-  return new Date().toLocaleTimeString('ar-EG',{hour:'2-digit',minute:'2-digit'});
-}
+  /* تنسيق الماركداون جوّه فقاعة البوت */
+  .md p{ margin:0 0 .5rem; } .md p:last-child{ margin-bottom:0; }
+  .md ul{ margin:.25rem 0; padding-inline-start:1.25rem; list-style:disc; }
+  .md ol{ margin:.25rem 0; padding-inline-start:1.25rem; list-style:decimal; }
+  .md li{ margin:.15rem 0; }
+  .md strong{ font-weight:700; color:#4338ca; }
+  .md a{ color:#4f46e5; text-decoration:underline; }
+  .md h1,.md h2,.md h3{ font-weight:700; margin:.4rem 0 .2rem; }
+  .md code{ background:#eef2ff; padding:.1rem .35rem; border-radius:.35rem; font-size:.85em; }
+</style>
+</head>
 
-function addMsg(role,text,err=false){
-  const w=document.getElementById('welcome');
-  if(w)w.remove();
+<body class="font-sans bg-gradient-to-br from-slate-50 via-white to-indigo-50 min-h-screen flex items-center justify-center p-0 sm:p-4 text-slate-800">
 
-  const d=document.createElement('div');
-  d.className='msg '+role;
+  <!-- الحاوية الرئيسية -->
+  <div class="w-full max-w-2xl h-screen sm:h-[92vh] sm:max-h-[880px] flex flex-col bg-white sm:rounded-3xl shadow-xl ring-1 ring-slate-900/5 overflow-hidden">
 
-  const av=role==='bot'?'🎓':'👤';
-  const ec=err?' err-bubble':'';
+    <!-- الهيدر -->
+    <header class="flex items-center gap-3 px-5 py-4 border-b border-slate-100 bg-white/80 backdrop-blur">
+      <div class="relative">
+        <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-brand-500 to-violet-500 grid place-items-center text-2xl shadow-lg shadow-brand-500/30">🎓</div>
+        <span class="absolute -bottom-0.5 -left-0.5 w-3.5 h-3.5 bg-emerald-500 border-2 border-white rounded-full"></span>
+      </div>
+      <div class="flex-1">
+        <h1 class="font-bold text-slate-900 leading-tight">مرشد</h1>
+        <p class="text-xs text-slate-400">المستشار الأكاديمي · Campus 51</p>
+      </div>
+      <span class="text-[11px] font-semibold text-brand-600 bg-brand-50 ring-1 ring-brand-100 px-3 py-1.5 rounded-full">Campus 51</span>
+    </header>
 
-  d.innerHTML=`
-    <div class="m-av">${av}</div>
-    <div class="m-body">
-      <div class="m-bubble${ec}">${esc(text)}</div>
-      <div class="m-time">${ts()}</div>
-    </div>`;
-  msgs.appendChild(d);
-  scrollEnd();
-}
+    <!-- منطقة الرسائل -->
+    <main id="msgs" class="flex-1 overflow-y-auto px-4 sm:px-6 py-6 space-y-5 bg-slate-50/40">
 
-function esc(t){
-  return t
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;').replace(/"/g,'&quot;')
-    .replace(/\\n/g,'<br>');
-}
+      <!-- شاشة الترحيب -->
+      <div id="welcome" class="text-center py-10">
+        <div class="w-20 h-20 mx-auto mb-5 rounded-3xl bg-gradient-to-br from-brand-100 to-violet-100 ring-1 ring-brand-200 grid place-items-center text-4xl">🎓</div>
+        <h2 class="text-lg font-bold text-slate-800">أهلاً بك في مرشد</h2>
+        <p class="text-sm text-slate-500 mt-1 leading-relaxed">المستشار الأكاديمي الذكي لـ Campus 51<br>اسألني عن أي برنامج أو كورس أو مسار تأهيل</p>
+        <div class="flex flex-wrap gap-2 justify-center mt-6">
+          <button onclick="quick(this)" class="text-[13px] text-brand-700 bg-white hover:bg-brand-50 ring-1 ring-brand-200 hover:ring-brand-300 px-4 py-2 rounded-full transition">ما هو مسار QTS Pathway؟</button>
+          <button onclick="quick(this)" class="text-[13px] text-brand-700 bg-white hover:bg-brand-50 ring-1 ring-brand-200 hover:ring-brand-300 px-4 py-2 rounded-full transition">ما هي البرامج المتاحة؟</button>
+          <button onclick="quick(this)" class="text-[13px] text-brand-700 bg-white hover:bg-brand-50 ring-1 ring-brand-200 hover:ring-brand-300 px-4 py-2 rounded-full transition">أريد التسجيل في دورة</button>
+          <button onclick="quick(this)" class="text-[13px] text-brand-700 bg-white hover:bg-brand-50 ring-1 ring-brand-200 hover:ring-brand-300 px-4 py-2 rounded-full transition">معلومات عن الشهادات</button>
+        </div>
+      </div>
 
-function scrollEnd(){msgs.scrollTop=msgs.scrollHeight}
+    </main>
 
-function showTyping(){
-  typing.classList.add('on');
-  msgs.parentNode.insertBefore(typing,msgs.nextSibling);
-  scrollEnd();
-}
-function hideTyping(){typing.classList.remove('on')}
+    <!-- مؤشر الكتابة -->
+    <div id="typing" class="hidden px-4 sm:px-6 pb-2">
+      <div class="flex items-end gap-2.5">
+        <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-brand-500 to-violet-500 grid place-items-center text-sm shrink-0">🎓</div>
+        <div class="bg-white ring-1 ring-slate-100 rounded-2xl rounded-br-md px-4 py-3 flex gap-1.5">
+          <span class="w-2 h-2 bg-brand-300 rounded-full animate-bounce-dot"></span>
+          <span class="w-2 h-2 bg-brand-300 rounded-full animate-bounce-dot" style="animation-delay:.18s"></span>
+          <span class="w-2 h-2 bg-brand-300 rounded-full animate-bounce-dot" style="animation-delay:.36s"></span>
+        </div>
+      </div>
+    </div>
 
-function quickSend(el){
-  inp.value=el.textContent;
-  send();
-}
+    <!-- منطقة الإدخال -->
+    <footer class="px-4 sm:px-6 py-4 border-t border-slate-100 bg-white">
+      <div class="flex items-end gap-2 bg-slate-100 focus-within:bg-white focus-within:ring-2 focus-within:ring-brand-300 ring-1 ring-slate-200 rounded-2xl px-3 py-2 transition">
+        <textarea id="inp" rows="1" placeholder="اكتب رسالتك هنا..."
+          class="flex-1 bg-transparent outline-none resize-none max-h-32 text-[15px] leading-relaxed py-1.5 placeholder:text-slate-400"></textarea>
+        <button id="send" onclick="send()"
+          class="w-11 h-11 rounded-xl bg-gradient-to-br from-brand-500 to-violet-500 text-white grid place-items-center shrink-0 hover:scale-105 active:scale-95 transition disabled:opacity-40 disabled:hover:scale-100 shadow-lg shadow-brand-500/30">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+          </svg>
+        </button>
+      </div>
+      <p class="text-[11px] text-slate-400 text-center mt-2.5">Enter للإرسال · Shift+Enter لسطر جديد · مدعوم بـ Google Gemini</p>
+    </footer>
+  </div>
 
-async function send(){
-  const txt=inp.value.trim();
-  if(!txt||btn.disabled)return;
-  inp.value='';inp.style.height='auto';
-  btn.disabled=true;
-  addMsg('user',txt);
-  showTyping();
-  try{
-    const r=await fetch('/api/chat',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({message:txt,thread_id:tid})
-    });
-    if(!r.ok)throw new Error('HTTP '+r.status);
-    const d=await r.json();
-    hideTyping();
-    addMsg('bot',d.reply);
-  }catch(e){
-    hideTyping();
-    addMsg('bot','⚠️ حصل خطأ في الاتصال، حاول مرة ثانية.',true);
-  }finally{
-    btn.disabled=false;inp.focus();
+<script>
+  const tid = 'web-' + Math.random().toString(36).slice(2, 9);
+  const msgs = document.getElementById('msgs');
+  const typing = document.getElementById('typing');
+  const inp = document.getElementById('inp');
+  const sendBtn = document.getElementById('send');
+
+  marked.setOptions({ breaks: true });
+
+  inp.addEventListener('input', () => {
+    inp.style.height = 'auto';
+    inp.style.height = Math.min(inp.scrollHeight, 128) + 'px';
+  });
+  inp.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+  });
+
+  const now = () => new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+
+  function addMsg(role, text, isErr = false) {
+    document.getElementById('welcome')?.remove();
+    const isBot = role === 'bot';
+    const row = document.createElement('div');
+    row.className = 'flex items-end gap-2.5 animate-pop ' + (isBot ? '' : 'flex-row-reverse');
+
+    const avatar = isBot
+      ? '<div class="w-8 h-8 rounded-xl bg-gradient-to-br from-brand-500 to-violet-500 grid place-items-center text-sm shrink-0">🎓</div>'
+      : '<div class="w-8 h-8 rounded-xl bg-gradient-to-br from-sky-400 to-blue-500 grid place-items-center text-sm shrink-0">👤</div>';
+
+    const bubbleBase = 'max-w-[78%] px-4 py-2.5 text-[14.5px] leading-relaxed shadow-sm';
+    const bubble = isBot
+      ? (isErr
+          ? '<div class="' + bubbleBase + ' bg-rose-50 text-rose-600 ring-1 ring-rose-100 rounded-2xl rounded-br-md">' + escapeHtml(text) + '</div>'
+          : '<div class="' + bubbleBase + ' md bg-white text-slate-700 ring-1 ring-slate-100 rounded-2xl rounded-br-md">' + marked.parse(text) + '</div>')
+      : '<div class="' + bubbleBase + ' bg-gradient-to-br from-brand-500 to-violet-500 text-white rounded-2xl rounded-bl-md">' + escapeHtml(text) + '</div>';
+
+    row.innerHTML = avatar +
+      '<div class="flex flex-col ' + (isBot ? 'items-start' : 'items-end') + '">' +
+        bubble +
+        '<span class="text-[10px] text-slate-300 mt-1 px-1">' + now() + '</span>' +
+      '</div>';
+    msgs.appendChild(row);
+    msgs.scrollTop = msgs.scrollHeight;
   }
-}
+
+  function escapeHtml(t) {
+    const d = document.createElement('div');
+    d.textContent = t;
+    return d.innerHTML;
+  }
+
+  function showTyping() {
+    typing.classList.remove('hidden');
+    msgs.parentNode.insertBefore(typing, msgs.nextSibling);
+    msgs.scrollTop = msgs.scrollHeight;
+  }
+  function hideTyping() { typing.classList.add('hidden'); }
+
+  function quick(el) { inp.value = el.textContent; send(); }
+
+  async function send() {
+    const txt = inp.value.trim();
+    if (!txt || sendBtn.disabled) return;
+    inp.value = ''; inp.style.height = 'auto';
+    sendBtn.disabled = true;
+    addMsg('user', txt);
+    showTyping();
+    try {
+      const r = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: txt, thread_id: tid }),
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const d = await r.json();
+      hideTyping();
+      addMsg('bot', d.reply);
+    } catch (e) {
+      hideTyping();
+      addMsg('bot', '⚠️ حصل خطأ في الاتصال، حاول مرة ثانية.', true);
+    } finally {
+      sendBtn.disabled = false;
+      inp.focus();
+    }
+  }
 </script>
 </body>
 </html>"""
